@@ -160,6 +160,8 @@ fun QueueScreen(
                     }
 
                     if (showingLocalQueue) {
+                        //item { Spacer(modifier = Modifier.height(10.dp)) }
+
                         if (localQueueState.items.isEmpty()) {
                             item {
                                 Text(
@@ -186,7 +188,7 @@ fun QueueScreen(
                                     isCurrentSong = isCurrentSong,
                                     isPlayingSong = isCurrentSong && playerState.isPlaying,
                                     onClick = {
-                                        viewModel.playLocalQueueIndex(index)
+                                        item.id.toIntOrNull()?.let(viewModel::playLocalQueueIndex)
                                     },
                                 )
                             }

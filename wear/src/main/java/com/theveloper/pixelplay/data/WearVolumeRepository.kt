@@ -207,7 +207,7 @@ private fun MediaRouter.RouteInfo.toWearAudioOutputRoute(audioManager: AudioMana
     }
     val displayName = when {
         isBluetooth -> name.ifBlank { "Bluetooth" }
-        else -> name.ifBlank { "Watch speaker" }
+        else -> "Watch speaker"
     }
     val resolvedConnectionState = if (isDeviceSpeaker) {
         MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED

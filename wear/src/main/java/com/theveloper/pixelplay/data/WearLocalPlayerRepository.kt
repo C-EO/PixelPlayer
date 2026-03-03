@@ -343,10 +343,17 @@ class WearLocalPlayerRepository @Inject constructor(
     }
 
     private fun updateQueueState(currentIndex: Int? = null) {
+        val rawCurrentIndex = currentIndex ?: exoPlayer?.currentMediaItemIndex ?: -1
+        val startIndex = if (rawCurrentIndex in currentQueueSongIds.indices) {
+            rawCurrentIndex
+        } else {
+            0
+        }
+
         val queueItems = currentQueueSongIds.mapIndexedNotNull { index, songId ->
             val queueItem = currentQueueItemsById[songId] ?: return@mapIndexedNotNull null
             val subtitle = when {
-                index == (currentIndex ?: exoPlayer?.currentMediaItemIndex ?: -1) -> {
+                index == rawCurrentIndex -> {
                     val supportingText = queueItem.artist.ifBlank { queueItem.album }
                     if (supportingText.isBlank()) {
                         "Playing on watch"
@@ -365,11 +372,10 @@ class WearLocalPlayerRepository @Inject constructor(
                 subtitle = subtitle,
                 type = WearLibraryItem.TYPE_SONG,
             )
-        }
+        }.drop(startIndex)
 
-        val rawCurrentIndex = currentIndex ?: exoPlayer?.currentMediaItemIndex ?: -1
-        val resolvedCurrentIndex = if (rawCurrentIndex in queueItems.indices) {
-            rawCurrentIndex
+        val resolvedCurrentIndex = if (rawCurrentIndex in currentQueueSongIds.indices && queueItems.isNotEmpty()) {
+            0
         } else {
             -1
         }
