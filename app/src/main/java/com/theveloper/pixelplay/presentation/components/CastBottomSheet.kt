@@ -182,6 +182,7 @@ fun CastBottomSheet(
         buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_SCAN)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(Manifest.permission.NEARBY_WIFI_DEVICES)
@@ -196,14 +197,14 @@ fun CastBottomSheet(
     ) {
         missingPermissions = missingCastPermissions(context, requiredPermissions)
         if (missingPermissions.isEmpty()) {
-            playerViewModel.refreshLocalConnectionInfo()
+            playerViewModel.refreshLocalConnectionInfo(refreshBluetoothDevices = true)
         }
     }
 
     LaunchedEffect(Unit) {
         missingPermissions = missingCastPermissions(context, requiredPermissions)
         if (missingPermissions.isEmpty()) {
-            playerViewModel.refreshLocalConnectionInfo()
+            playerViewModel.refreshLocalConnectionInfo(refreshBluetoothDevices = true)
         }
     }
 
@@ -360,7 +361,14 @@ fun CastBottomSheet(
                     CastSheetContent(
                         state = uiState,
                         onSelectDevice = { id ->
-                            routes.firstOrNull { it.id == id }?.let { playerViewModel.selectRoute(it) }
+                            when {
+                                id.startsWith("bluetooth_") -> {
+                                    val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                }
+                                else -> routes.firstOrNull { it.id == id }?.let { playerViewModel.selectRoute(it) }
+                            }
                         },
                         onDisconnect = {
                             playerViewModel.disconnect()
@@ -383,7 +391,10 @@ fun CastBottomSheet(
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             context.startActivity(intent)
                         },
-                        onRefresh = { playerViewModel.refreshCastRoutes() },
+                        onRefresh = {
+                            playerViewModel.refreshCastRoutes()
+                            playerViewModel.refreshLocalConnectionInfo(refreshBluetoothDevices = true)
+                        },
                         startWithControls = isRemoteSession
                     )
                 }
@@ -1500,8 +1511,8 @@ private fun CastDeviceRow(
     onDisconnect: () -> Unit
 ) {
     val (containerColor, onContainer) = when {
-        device.isBluetooth -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         device.isSelected -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        device.isBluetooth -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurface
     }
 
@@ -1537,8 +1548,9 @@ private fun CastDeviceRow(
             .fillMaxWidth()
             .clip(CircleShape) // Mantenemos el clip circular para el ripple
             .clickable(
-                enabled = !device.isBluetooth,
+                enabled = true,
                 onClick = when {
+                    device.isBluetooth -> onSelect
                     device.isSelected &&
                         device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> onDisconnect
                     device.isSelected &&
@@ -1605,7 +1617,9 @@ private fun CastDeviceRow(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 val statusText = when {
-                    device.isBluetooth -> "Bluetooth Audio"
+                    device.isBluetooth &&
+                        device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> "Connected"
+                    device.isBluetooth -> "Available to connect"
                     device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTED -> "Connected"
                     device.isSelected && device.connectionState == MediaRouter.RouteInfo.CONNECTION_STATE_CONNECTING -> "Connecting"
                     else -> "Available"

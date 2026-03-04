@@ -1056,8 +1056,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     // Connectivity refresh delegated to ConnectivityStateHolder
-    fun refreshLocalConnectionInfo() {
-        connectivityStateHolder.refreshLocalConnectionInfo()
+    fun refreshLocalConnectionInfo(refreshBluetoothDevices: Boolean = false) {
+        connectivityStateHolder.refreshLocalConnectionInfo(refreshBluetoothDevices)
     }
 
     init {
