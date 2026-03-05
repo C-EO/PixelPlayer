@@ -1906,7 +1906,6 @@ class MusicService : MediaLibraryService() {
         }
         refreshMediaSessionUi(session)
         requestWidgetFullUpdate(force = true)
-        schedulePlaybackSnapshotPersist()
     }
 
     private fun setCurrentSongFavoriteState(
