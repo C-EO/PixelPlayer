@@ -139,7 +139,7 @@ class ConnectivityStateHolder @Inject constructor(
         _isOnline.value = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
                 capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 
-        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
+        updateBluetoothEnabledState()
 
         // Register WiFi network callback
         networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -202,7 +202,7 @@ class ConnectivityStateHolder @Inject constructor(
             override fun onReceive(context: Context?, intent: Intent?) {
                 when (intent?.action) {
                     BluetoothAdapter.ACTION_STATE_CHANGED -> {
-                        _isBluetoothEnabled.value = bluetoothAdapter?.isEnabled ?: false
+                        updateBluetoothEnabledState()
                         if (_isBluetoothEnabled.value) {
                             updateAudioDevices()
                         } else {
@@ -286,6 +286,7 @@ class ConnectivityStateHolder @Inject constructor(
     }
 
     private fun updateAudioDevices() {
+        updateBluetoothEnabledState()
         if (!_isBluetoothEnabled.value) {
             discoveredBluetoothAudioDevices.clear()
             _bluetoothAudioDeviceStates.value = emptyList()
@@ -375,7 +376,7 @@ class ConnectivityStateHolder @Inject constructor(
         val adapter = bluetoothAdapter ?: return
         if (!canStartBluetoothDiscovery()) return
 
-        if (adapter.isDiscovering) {
+        if (runCatching { adapter.isDiscovering }.getOrDefault(false)) {
             runCatching { adapter.cancelDiscovery() }
         }
         runCatching { adapter.startDiscovery() }
@@ -397,11 +398,26 @@ class ConnectivityStateHolder @Inject constructor(
         if (normalizedName.isEmpty()) return true
 
         val localDeviceNames = buildSet {
-            bluetoothAdapter?.name?.trim()?.takeIf { it.isNotEmpty() }?.let(::add)
+            resolveLocalBluetoothAdapterName()?.let(::add)
             Build.MODEL.trim().takeIf { it.isNotEmpty() }?.let(::add)
         }
 
         return localDeviceNames.any { it.equals(normalizedName, ignoreCase = true) }
+    }
+
+    private fun updateBluetoothEnabledState() {
+        _isBluetoothEnabled.value = if (!hasBluetoothConnectPermission()) {
+            false
+        } else {
+            runCatching { bluetoothAdapter?.isEnabled ?: false }.getOrDefault(false)
+        }
+    }
+
+    private fun resolveLocalBluetoothAdapterName(): String? {
+        if (!hasBluetoothConnectPermission()) return null
+        return runCatching { bluetoothAdapter?.name?.trim().orEmpty() }
+            .getOrDefault("")
+            .takeIf { it.isNotEmpty() }
     }
 
     private fun hasBluetoothConnectPermission(): Boolean {
@@ -443,12 +459,16 @@ class ConnectivityStateHolder @Inject constructor(
     }
 
     private fun BluetoothDevice.toBluetoothAudioDeviceState(isConnected: Boolean): BluetoothAudioDeviceState? {
-        val deviceName = name?.trim().orEmpty()
+        if (!hasBluetoothConnectPermission()) return null
+
+        val deviceName = runCatching { name?.trim().orEmpty() }.getOrDefault("")
         if (deviceName.isEmpty() || isOwnBluetoothDeviceName(deviceName)) return null
 
         return BluetoothAudioDeviceState(
             name = deviceName,
-            address = address?.trim()?.takeIf { it.isNotEmpty() },
+            address = runCatching { address?.trim().orEmpty() }
+                .getOrDefault("")
+                .takeIf { it.isNotEmpty() },
             isConnected = isConnected,
             batteryPercent = resolveBatteryPercent(this)
         )
@@ -501,7 +521,7 @@ class ConnectivityStateHolder @Inject constructor(
         audioDeviceCallback?.let { 
             audioManager.unregisterAudioDeviceCallback(it) 
         }
-        bluetoothAdapter?.takeIf { it.isDiscovering }?.let {
+        bluetoothAdapter?.takeIf { runCatching { it.isDiscovering }.getOrDefault(false) }?.let {
             runCatching { it.cancelDiscovery() }
         }
         discoveredBluetoothAudioDevices.clear()
