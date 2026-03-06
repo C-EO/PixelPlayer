@@ -398,8 +398,8 @@ class ConnectivityStateHolder @Inject constructor(
         if (normalizedName.isEmpty()) return true
 
         val localDeviceNames = buildSet {
-            resolveLocalBluetoothAdapterName()?.let(::add)
-            Build.MODEL.trim().takeIf { it.isNotEmpty() }?.let(::add)
+            resolveLocalBluetoothAdapterName()?.let { add(it) }
+            Build.MODEL.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
         }
 
         return localDeviceNames.any { it.equals(normalizedName, ignoreCase = true) }
@@ -491,6 +491,7 @@ class ConnectivityStateHolder @Inject constructor(
     }
 
     private fun BluetoothDevice.isAudioOutputCandidate(): Boolean {
+        if (!hasBluetoothConnectPermission()) return false
         val deviceClass = bluetoothClass ?: return false
         return deviceClass.majorDeviceClass == BluetoothClass.Device.Major.AUDIO_VIDEO ||
             deviceClass.hasService(BluetoothClass.Service.RENDER)
@@ -518,11 +519,10 @@ class ConnectivityStateHolder @Inject constructor(
         bluetoothStateReceiver?.let { 
             runCatching { context.unregisterReceiver(it) }
         }
-        audioDeviceCallback?.let { 
-            audioManager.unregisterAudioDeviceCallback(it) 
-        }
-        bluetoothAdapter?.takeIf { runCatching { it.isDiscovering }.getOrDefault(false) }?.let {
-            runCatching { it.cancelDiscovery() }
+        if (hasBluetoothScanPermission()) {
+            bluetoothAdapter?.takeIf { runCatching { it.isDiscovering }.getOrDefault(false) }?.let {
+                runCatching { it.cancelDiscovery() }
+            }
         }
         discoveredBluetoothAudioDevices.clear()
         _bluetoothAudioDeviceStates.value = emptyList()
