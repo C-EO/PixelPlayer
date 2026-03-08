@@ -1716,6 +1716,7 @@ private fun QueueMiniPlayer(
                 model = song.albumArtUriString,
                 shape = albumShape,
                 contentDescription = "Carátula",
+                placeHolderBackgroundColor = colors.surfaceContainerLow,
                 modifier = Modifier
                     .size(56.dp)
                     .clip(albumShape),

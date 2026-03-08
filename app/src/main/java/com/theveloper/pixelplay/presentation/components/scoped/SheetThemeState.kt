@@ -37,6 +37,21 @@ internal data class SheetThemeState(
     val playerAreaBackground: Color
 )
 
+internal fun resolvePlayerSheetTargetScheme(
+    isAlbumArtTheme: Boolean,
+    hasAlbumArt: Boolean,
+    currentSongActiveScheme: ColorScheme?,
+    lastAlbumScheme: ColorScheme?,
+    systemColorScheme: ColorScheme
+): ColorScheme {
+    return when {
+        !isAlbumArtTheme || !hasAlbumArt -> systemColorScheme
+        currentSongActiveScheme != null -> currentSongActiveScheme
+        lastAlbumScheme != null -> lastAlbumScheme
+        else -> systemColorScheme
+    }
+}
+
 @Composable
 internal fun rememberSheetThemeState(
     activePlayerSchemePair: ColorSchemePair?,
@@ -48,8 +63,7 @@ internal fun rememberSheetThemeState(
     systemColorScheme: ColorScheme
 ): SheetThemeState {
     val isAlbumArtTheme = playerThemePreference == ThemePreference.ALBUM_ART
-    val hasAlbumArt = currentSong?.albumArtUriString != null
-    val needsAlbumScheme = isAlbumArtTheme && hasAlbumArt
+    val hasAlbumArt = !currentSong?.albumArtUriString.isNullOrBlank()
 
     val activePlayerScheme = remember(activePlayerSchemePair, isDarkTheme) {
         activePlayerSchemePair?.let { if (isDarkTheme) it.dark else it.light }
@@ -95,19 +109,23 @@ internal fun rememberSheetThemeState(
     // Capture nullable var for smart-cast
     val lastAlbumSchemeSnapshot = lastAlbumScheme
 
-    // Use lastAlbumScheme (previous song's color) as fallback while new color loads
-    val rawAlbumColorScheme = if (isAlbumArtTheme) {
-        currentSongActiveScheme ?: lastAlbumSchemeSnapshot ?: systemColorScheme
-    } else {
-        systemColorScheme
-    }
+    // Cross-song fallback is only valid while a new track with usable album art is still loading.
+    // Tracks without art must resolve directly to the system scheme, otherwise previous colors stick.
+    val rawAlbumColorScheme = resolvePlayerSheetTargetScheme(
+        isAlbumArtTheme = isAlbumArtTheme,
+        hasAlbumArt = hasAlbumArt,
+        currentSongActiveScheme = currentSongActiveScheme,
+        lastAlbumScheme = lastAlbumSchemeSnapshot,
+        systemColorScheme = systemColorScheme
+    )
 
-    val rawMiniPlayerScheme = when {
-        !needsAlbumScheme -> systemColorScheme
-        currentSongActiveScheme != null -> currentSongActiveScheme
-        lastAlbumSchemeSnapshot != null -> lastAlbumSchemeSnapshot
-        else -> systemColorScheme
-    }
+    val rawMiniPlayerScheme = resolvePlayerSheetTargetScheme(
+        isAlbumArtTheme = isAlbumArtTheme,
+        hasAlbumArt = hasAlbumArt,
+        currentSongActiveScheme = currentSongActiveScheme,
+        lastAlbumScheme = lastAlbumSchemeSnapshot,
+        systemColorScheme = systemColorScheme
+    )
 
     // --- Batch Color Animation ---
     // Instead of 34×2 = 68 independent animateColorAsState (one Spring coroutine each),
