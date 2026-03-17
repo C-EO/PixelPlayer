@@ -2004,15 +2004,20 @@ class MusicService : MediaLibraryService() {
         // Android 12+ (API 31+): Media3 calls startForegroundService asynchronously
         // (e.g. after bitmap loading or Cast SDK callbacks). By that time the app may
         // already be in the background, causing ForegroundServiceStartNotAllowedException.
-        // Catch the exception and fall back to startService — if the service is already
-        // foreground, the subsequent Service.startForeground() call will just update
-        // the notification without throwing.
+        // Do not fall back to startService(): on Android 12+ that turns the original
+        // foreground-service exception into BackgroundServiceStartNotAllowedException,
+        // which Media3 does not handle and crashes the process. If the service is
+        // already foreground, Media3's subsequent startForeground() call will simply
+        // update the notification.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             return try {
                 super.startForegroundService(serviceIntent)
             } catch (e: ForegroundServiceStartNotAllowedException) {
-                Timber.tag(TAG).w(e, "startForegroundService not allowed, falling back to startService")
-                startService(serviceIntent)
+                Timber.tag(TAG).w(
+                    e,
+                    "startForegroundService not allowed; ignoring redundant self-start request"
+                )
+                serviceIntent?.component ?: ComponentName(this, javaClass)
             }
         }
         return super.startForegroundService(serviceIntent)
