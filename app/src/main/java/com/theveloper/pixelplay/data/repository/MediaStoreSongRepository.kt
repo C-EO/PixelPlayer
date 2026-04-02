@@ -19,6 +19,7 @@ import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.DirectoryRuleResolver
 import com.theveloper.pixelplay.utils.DirectoryFilterUtils
 import com.theveloper.pixelplay.utils.LogUtils
+import com.theveloper.pixelplay.utils.buildLocalAudioSelection
 import com.theveloper.pixelplay.utils.normalizeMetadataText
 import com.theveloper.pixelplay.utils.normalizeMetadataTextOrEmpty
 import com.theveloper.pixelplay.utils.extractArtistsFromTitle
@@ -59,12 +60,6 @@ class MediaStoreSongRepository @Inject constructor(
     private val musicDao: MusicDao,
     private val userPreferencesRepository: UserPreferencesRepository
 ) : SongRepository {
-
-    private fun getBaseSelection(minDurationMs: Int = 10000): String {
-        // Relaxed filter: Remove IS_MUSIC to include all audio strings (WhatsApp, Recs, etc.)
-        // We filter by duration based on user preference (default 10s).
-        return "${MediaStore.Audio.Media.DURATION} >= $minDurationMs AND ${MediaStore.Audio.Media.TITLE} != ''"
-    }
 
     private suspend fun getFavoriteIds(): Set<Long> {
         return favoritesDao.getFavoriteSongIdsOnce().toSet()
@@ -121,6 +116,7 @@ class MediaStoreSongRepository @Inject constructor(
         extraSelectionArgs: Array<String>? = null
     ): List<Song> = withContext(Dispatchers.IO) {
         val songs = mutableListOf<Song>()
+        val (baseSelection, baseSelectionArgs) = buildLocalAudioSelection(minDurationMs)
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
             MediaStore.Audio.Media.TITLE,
@@ -144,12 +140,17 @@ class MediaStoreSongRepository @Inject constructor(
         // Assuming minSdk is high enough or columns exist (ALBUM_ARTIST is API 30+, need check if app supports lower)
 
         val selection = buildString {
-            append(getBaseSelection(minDurationMs))
+            append(baseSelection)
             if (!extraSelection.isNullOrBlank()) {
                 append(" AND (")
                 append(extraSelection)
                 append(")")
             }
+        }
+        val selectionArgs = if (extraSelectionArgs.isNullOrEmpty()) {
+            baseSelectionArgs
+        } else {
+            baseSelectionArgs + extraSelectionArgs
         }
 
         val songIdToGenreMap = getSongIdToGenreMap(context.contentResolver)
@@ -159,7 +160,7 @@ class MediaStoreSongRepository @Inject constructor(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
-                extraSelectionArgs,
+                selectionArgs,
                 "${MediaStore.Audio.Media.TITLE} ASC"
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -401,14 +402,14 @@ class MediaStoreSongRepository @Inject constructor(
     private suspend fun getFilteredSongIds(allowedDirs: List<String>, blockedDirs: List<String>, minDurationMs: Int = 10000): List<Long> = withContext(Dispatchers.IO) {
         val ids = mutableListOf<Long>()
         val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DATA)
-        val selection = getBaseSelection(minDurationMs)
+        val (selection, selectionArgs) = buildLocalAudioSelection(minDurationMs)
 
         try {
             context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
-                null,
+                selectionArgs,
                 "${MediaStore.Audio.Media.TITLE} ASC"
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
