@@ -91,7 +91,6 @@ fun AlbumCarouselSection(
         requestedScrollIndex?.takeIf { it in queue.indices }
     }
     val effectiveTargetIndex = requestedTargetIndex ?: currentSongIndex
-    val smoothCarouselSpec = remember { tween<Float>(durationMillis = 360, easing = FastOutSlowInEasing) }
     var ignoreNextSettledSelectionForPage by remember { mutableStateOf<Int?>(null) }
     var programmaticScrollInProgress by remember { mutableStateOf(false) }
     LaunchedEffect(effectiveTargetIndex, requestedTargetIndex, queue) {
@@ -103,7 +102,7 @@ fun AlbumCarouselSection(
             }
             programmaticScrollInProgress = true
             try {
-                carouselState.animateScrollToItem(effectiveTargetIndex, animationSpec = smoothCarouselSpec)
+                carouselState.animateScrollToItem(effectiveTargetIndex)
             } finally {
                 programmaticScrollInProgress = false
             }
