@@ -11,8 +11,8 @@ import kotlinx.coroutines.withContext
 class GeminiAiClient(private val apiKey: String) : AiClient {
     
     companion object {
-        // Updated: gemini-2.0-flash is the stable default as Google phases out 2.5 preview APIs
-        private const val DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+        // Updated: Using the latest 3.x series models for best performance
+        private const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
     }
     
     private fun createModel(modelName: String, systemPrompt: String, temp: Float = 0.7f): GenerativeModel {
@@ -134,14 +134,14 @@ class GeminiAiClient(private val apiKey: String) : AiClient {
     }
     
     private fun getDefaultModels(): List<String> {
-        // Updated fallback list: prioritize stable models, include 2.0 series
+        // Updated fallback list: prioritize latest 3.x models
         return listOf(
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.5-pro",
+            "gemini-3.0-flash",
+            "gemini-3.0-pro",
             "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-1.5-flash",
-            "gemini-1.5-pro"
+            "gemini-2.5-pro"
         )
     }
 }

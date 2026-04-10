@@ -16,71 +16,113 @@ enum class AiSystemPromptType {
 @Singleton
 class AiSystemPromptEngine @Inject constructor() {
 
-    // AI Optimization: Compact universal constraints to prevent common LLM "chatter" behaviors.
-    // Reduced from verbose XML to minimal directives to save ~200 tokens per request.
+    // Advanced prompt engineering: Enforcing structured output boundaries
     private val UNIVERSAL_CONSTRAINTS = """
-        RULES: Output ONLY raw data. NO markdown (no ```). NO chat text. NO explanations. NO formatting chars. Raw data string ONLY. Breaking these rules crashes the parser.
+        <constraints>
+        - You are communicating with a programmatic parser, not a human.
+        - Output ONLY the expected structure.
+        - NO markdown formatting (e.g., do not wrap in ```json).
+        - NO conversational filler, greetings, or explanations.
+        - Any deviation will crash the application.
+        </constraints>
     """.trimIndent()
 
     fun buildPrompt(basePersona: String, type: AiSystemPromptType, context: String = ""): String {
         val requirementLayer = when (type) {
             AiSystemPromptType.PLAYLIST -> """
-                ROLE: Music curation engine. Select song IDs matching the user's request and listening profile.
-                
-                STRATEGY:
-                - "new/unheard/discovery" → pick from [DISCOVERY_POOL]
-                - "favorites/familiar" → pick high play-count from [LISTENED]
-                - generic → blend both pools, favor top genres/artists
-                - Ensure smooth flow and genre-appropriate energy progression
-                
-                OUTPUT: Raw JSON array of song IDs only.
-                Example: ["id_123","id_456","id_789"]
+                <role>Music curation engine mapping user requests to a strict candidate pool.</role>
+                <strategy>
+                - If request implies "discovery/new", prioritize the [DISCOVERY_POOL].
+                - If request implies "favorites/familiar", heavily weight the [LISTENED] pool.
+                - Otherwise, blend pools intelligently based on requested tempo, genre, or mood.
+                - Guarantee a cohesive listening journey with natural transitions.
+                </strategy>
+                <output_schema>
+                Return ONLY a raw JSON array of song IDs representing the playlist sequence.
+                Format: ["id_1","id_2","id_3"]
+                </output_schema>
             """.trimIndent()
 
             AiSystemPromptType.METADATA -> """
-                ROLE: Metadata specialist. Return accurate, specific values for the song.
-                Use specific genres (e.g. "Synthwave" not "Electronic").
-                OUTPUT: Raw JSON object.
-                Format: {"title":"Full Title","artist":"Primary Artist","album":"Album Name","genre":"Specific Genre"}
+                <role>Precision music metadata specialist.</role>
+                <strategy>
+                - Fix spelling errors and standardizations in song titles and artists.
+                - Replace generic genres ("Music", "Electronic") with highly specific subgenres ("Synthwave", "Nu-Disco").
+                </strategy>
+                <output_schema>
+                Return ONLY a raw JSON object string.
+                Format: {"title":"Clean Title", "artist":"Primary Artist", "album":"Album Name", "genre":"Specific Genre"}
+                </output_schema>
             """.trimIndent()
 
             AiSystemPromptType.TAGGING -> """
-                ROLE: Generate 6-10 descriptive atmospheric tags. Lowercase, hyphenated.
-                OUTPUT: Raw comma-separated list.
-                Example: cinematic, orchestral, dark-ambient, hybrid-score
+                <role>Atmospheric audio tagging engine.</role>
+                <strategy>
+                - Generate exactly 6-10 highly descriptive, hyphenated acoustic tags.
+                - Focus on mood, instrumentation, pace, and sonic texture.
+                - All tags must be strictly lowercase.
+                </strategy>
+                <output_schema>
+                Return ONLY a raw comma-separated text list.
+                Format: cinematic, atmospheric-build, dark-synth, driving-beat
+                </output_schema>
             """.trimIndent()
 
             AiSystemPromptType.MOOD_ANALYSIS -> """
-                ROLE: Derive mood and energy metrics from song metadata. Floats 0.0-1.0.
-                Moods: Joyful, Aggressive, Calm, Melancholic, Radiant, Intense, Somber.
-                OUTPUT: Tag | Value format.
-                Example: Intense | Energy:0.9 | Valence:0.1 | Danceability:0.4 | Acousticness:0.0
+                <role>Algorithmic audio sentiment analyzer.</role>
+                <strategy>
+                - Deduce structural properties from the given metadata.
+                - Map confidence values from 0.0 to 1.0.
+                - Primary moods: Joyful, Aggressive, Calm, Melancholic, Radiant, Intense, Somber.
+                </strategy>
+                <output_schema>
+                Return ONLY the exact structured text format.
+                Format: PrimaryMood | Energy:0.9 | Valence:0.1 | Danceability:0.4 | Acousticness:0.0
+                </output_schema>
             """.trimIndent()
 
             AiSystemPromptType.PERSONA -> """
-                ROLE: Poetic sonic oracle. Sophisticated, enigmatic, empathetic to user's taste.
-                Reference user's specific stats to personalize. Be concise.
+                <role>Poetic sonic oracle. You represent the persona: "$basePersona"</role>
+                <strategy>
+                - Speak directly to the listener's tastes using their data.
+                - Maintain an enigmatic, sophisticated, and deeply empathetic tone.
+                - Keep responses reasonably concise but beautifully written.
+                - Do NOT use the universal programmatic constraints for persona responses; you are allowed to be conversational.
+                </strategy>
             """.trimIndent()
 
             AiSystemPromptType.GENERAL -> """
-                ROLE: PixelPlayer music assistant. Help with music-related queries using library context.
+                <role>PixelPlayer Assistant</role>
+                <strategy>
+                Assist the user with any complex queries or actions inside their music ecosystem.
+                </strategy>
             """.trimIndent()
         }
 
         val contextLayer = if (context.isNotBlank()) {
             """
-            USER_CONTEXT:
+            <user_context>
             $context
-            KEY: LISTENED=id|p(plays)|d(mins)|f(fav)|meta. DISCOVERY_POOL=unplayed tracks.
+            </user_context>
+            <legend>
+            LISTENED Format: id|play_count|duration_mins|is_fav|metadata
+            DISCOVERY Format: unplayed candidate tracks
+            </legend>
             """.trimIndent()
         } else ""
 
-        // Token Optimization: Minimal structure, no redundant XML tags
-        return """
-            PERSONA: $basePersona
-            $UNIVERSAL_CONSTRAINTS
-            $contextLayer
+        val systemBlock = """
+            <system>
+            <persona>$basePersona</persona>
             $requirementLayer
+            </system>
         """.trimIndent()
+
+        // Persona generation bypasses the strict JSON/raw constraints since it is meant to read as prose to the user
+        return if (type == AiSystemPromptType.PERSONA || type == AiSystemPromptType.GENERAL) {
+            listOf(systemBlock, contextLayer).filter { it.isNotBlank() }.joinToString("\n\n")
+        } else {
+            listOf(systemBlock, UNIVERSAL_CONSTRAINTS, contextLayer).filter { it.isNotBlank() }.joinToString("\n\n")
+        }
     }
 }

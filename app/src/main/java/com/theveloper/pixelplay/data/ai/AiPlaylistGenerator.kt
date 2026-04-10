@@ -60,14 +60,16 @@ class AiPlaylistGenerator @Inject constructor(
             // Bring in the telemetry digest
             val userDigest = digestGenerator.generateDigest(allSongs, isSafe)
 
-            // Token Optimization: Compact prompt structure
+            // Token Optimization: Compact prompt structure with XML data boundaries
             val fullPrompt = """
             $userDigest
-            ---
-            REQUEST: "$userPrompt"
-            LENGTH: $minLength-$maxLength tracks
-            POOL (id|title|artist|genre|relevance):
+            <request>
+            <query>$userPrompt</query>
+            <target_length>$minLength-$maxLength tracks</target_length>
+            </request>
+            <candidate_pool>
             [$availableSongsJson]
+            </candidate_pool>
             """.trimIndent()
 
             val responseText = aiOrchestrator.generateContent(fullPrompt, AiSystemPromptType.PLAYLIST)
