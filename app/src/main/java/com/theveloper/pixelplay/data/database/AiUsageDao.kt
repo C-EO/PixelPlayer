@@ -7,8 +7,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AiUsageDao {
+    @Query("SELECT * FROM ai_usage")
+    suspend fun getAllUsagesOnce(): List<AiUsageEntity>
+
+    @Query("SELECT COUNT(*) FROM ai_usage")
+    suspend fun getUsageCount(): Int
+
     @Insert
     suspend fun insertUsage(usage: AiUsageEntity)
+
+    @Insert
+    suspend fun insertAll(usages: List<AiUsageEntity>)
 
     @Query("SELECT * FROM ai_usage ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentUsages(limit: Int): Flow<List<AiUsageEntity>>
@@ -24,4 +33,7 @@ interface AiUsageDao {
 
     @Query("DELETE FROM ai_usage")
     suspend fun clearUsage()
+
+    @Query("DELETE FROM ai_usage")
+    suspend fun clearAll()
 }
