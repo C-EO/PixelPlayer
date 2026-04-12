@@ -1454,6 +1454,8 @@ fun LibraryScreen(
                                             isLoading = isLoading,
                                             playerViewModel = playerViewModel,
                                             bottomBarHeight = bottomBarHeightDp,
+                                            isListView = playerUiState.isAlbumsListView,
+                                            currentAlbumSortOption = playerUiState.currentAlbumSortOption,
                                             onAlbumClick = stableOnAlbumClick,
                                             isRefreshing = isRefreshing,
                                             onRefresh = onRefresh,
@@ -1475,6 +1477,7 @@ fun LibraryScreen(
                                             isLoading = isLoading,
                                             playerViewModel = playerViewModel,
                                             bottomBarHeight = bottomBarHeightDp,
+                                            currentArtistSortOption = playerUiState.currentArtistSortOption,
                                             onArtistClick = { artistId ->
                                                 navController.navigateSafely(
                                                     Screen.ArtistDetail.createRoute(

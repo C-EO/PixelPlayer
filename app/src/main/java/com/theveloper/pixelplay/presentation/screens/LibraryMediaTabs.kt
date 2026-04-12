@@ -45,6 +45,7 @@ import com.theveloper.pixelplay.data.model.Album
 import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.LibraryTabId
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.model.StorageFilter
 import com.theveloper.pixelplay.presentation.components.ExpressiveScrollBar
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
@@ -67,6 +68,8 @@ fun LibraryAlbumsTab(
     isLoading: Boolean,
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
+    isListView: Boolean,
+    currentAlbumSortOption: SortOption,
     onAlbumClick: (Long) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -82,24 +85,22 @@ fun LibraryAlbumsTab(
     val context = LocalContext.current
     val imageLoader = context.imageLoader
 
-    val playerUiState by playerViewModel.playerUiState.collectAsStateWithLifecycle()
-    val isListView = playerUiState.isAlbumsListView
-    val albumFastScrollLabelProvider = remember(albums, playerUiState.currentAlbumSortOption) {
+    val albumFastScrollLabelProvider = remember(albums, currentAlbumSortOption) {
         { index: Int ->
             albumFastScrollLabel(
                 album = albums.getOrNull(index),
-                sortOption = playerUiState.currentAlbumSortOption
+                sortOption = currentAlbumSortOption
             )
         }
     }
 
     var lastHandledAlbumSortKey by remember {
-        mutableStateOf(playerUiState.currentAlbumSortOption.storageKey)
+        mutableStateOf(currentAlbumSortOption.storageKey)
     }
     var pendingAlbumSortScrollReset by remember { mutableStateOf(false) }
 
-    LaunchedEffect(playerUiState.currentAlbumSortOption) {
-        val currentSortKey = playerUiState.currentAlbumSortOption.storageKey
+    LaunchedEffect(currentAlbumSortOption) {
+        val currentSortKey = currentAlbumSortOption.storageKey
         if (currentSortKey == lastHandledAlbumSortKey) return@LaunchedEffect
         lastHandledAlbumSortKey = currentSortKey
         pendingAlbumSortScrollReset = true
@@ -391,28 +392,28 @@ fun LibraryArtistsTab(
     isLoading: Boolean,
     playerViewModel: PlayerViewModel,
     bottomBarHeight: Dp,
+    currentArtistSortOption: SortOption,
     onArtistClick: (Long) -> Unit,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     storageFilter: StorageFilter = StorageFilter.ALL
 ) {
     val listState = rememberLazyListState()
-    val playerUiState by playerViewModel.playerUiState.collectAsStateWithLifecycle()
-    val artistFastScrollLabelProvider = remember(artists, playerUiState.currentArtistSortOption) {
+    val artistFastScrollLabelProvider = remember(artists, currentArtistSortOption) {
         { index: Int ->
             artistFastScrollLabel(
                 artist = artists.getOrNull(index),
-                sortOption = playerUiState.currentArtistSortOption
+                sortOption = currentArtistSortOption
             )
         }
     }
     var lastHandledArtistSortKey by remember {
-        mutableStateOf(playerUiState.currentArtistSortOption.storageKey)
+        mutableStateOf(currentArtistSortOption.storageKey)
     }
     var pendingArtistSortScrollReset by remember { mutableStateOf(false) }
 
-    LaunchedEffect(playerUiState.currentArtistSortOption) {
-        val currentSortKey = playerUiState.currentArtistSortOption.storageKey
+    LaunchedEffect(currentArtistSortOption) {
+        val currentSortKey = currentArtistSortOption.storageKey
         if (currentSortKey == lastHandledArtistSortKey) return@LaunchedEffect
         lastHandledArtistSortKey = currentSortKey
         pendingArtistSortScrollReset = true
