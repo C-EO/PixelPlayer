@@ -958,6 +958,7 @@ fun FullPlayerContent(
             tertiaryColor = LocalMaterialTheme.current.tertiary,
             onTertiaryColor = LocalMaterialTheme.current.onTertiary,
             onBackClick = { showLyricsSheet = false },
+            onSaveLyricsToFile = playerViewModel::saveLyricsToFile,
             onSeekTo = { playerViewModel.seekTo(it) },
             onPlayPause = {
                 playerViewModel.playPause()

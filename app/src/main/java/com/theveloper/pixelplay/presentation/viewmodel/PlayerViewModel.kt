@@ -183,7 +183,7 @@ private data class PreparedPlaybackQueue(
 )
 
 private data class PendingMetadataEdit(
-    val song: com.theveloper.pixelplay.data.model.Song,
+    val song: Song,
     val title: String,
     val artist: String,
     val album: String,
@@ -194,6 +194,12 @@ private data class PendingMetadataEdit(
     val replayGainTrackGainDb: String?,
     val replayGainAlbumGainDb: String?,
     val coverArtUpdate: CoverArtUpdate?
+)
+
+private data class PendingLyricsSave(
+    val song: Song,
+    val lyrics: Lyrics,
+    val preferSynced: Boolean
 )
 
 @UnstableApi
@@ -613,6 +619,7 @@ class PlayerViewModel @Inject constructor(
     val deletePermissionRequest: SharedFlow<android.content.IntentSender> = _deletePermissionRequest.asSharedFlow()
 
     private var pendingMetadataEdit: PendingMetadataEdit? = null
+    private var pendingLyricsSave: PendingLyricsSave? = null
     private var pendingDeleteSong: Song? = null
     private var pendingDeleteCallback: ((Boolean) -> Unit)? = null
 
@@ -4260,6 +4267,18 @@ class PlayerViewModel @Inject constructor(
             return
         }
 
+        // Handle lyrics save retry
+        val pendingLyrics = pendingLyricsSave
+        if (pendingLyrics != null) {
+            pendingLyricsSave = null
+            if (!granted) {
+                viewModelScope.launch { _toastEvents.emit("Permission denied – cannot save lyrics") }
+                return
+            }
+            performLyricsSave(pendingLyrics.song, pendingLyrics.lyrics, pendingLyrics.preferSynced)
+            return
+        }
+
         // Handle single metadata edit
         val pending = pendingMetadataEdit ?: return
         pendingMetadataEdit = null
@@ -4275,6 +4294,53 @@ class PlayerViewModel @Inject constructor(
                 pending.genre, pending.lyrics, pending.trackNumber, pending.discNumber,
                 pending.replayGainTrackGainDb, pending.replayGainAlbumGainDb, pending.coverArtUpdate
             )
+        }
+    }
+
+    fun saveLyricsToFile(song: Song, lyrics: Lyrics, preferSynced: Boolean) {
+        val lrcContent = LyricsUtils.toLrcString(lyrics, preferSynced)
+        if (lrcContent.isEmpty()) {
+            viewModelScope.launch { _toastEvents.emit(context.getString(R.string.no_lyrics_to_save)) }
+            return
+        }
+
+        val songFile = java.io.File(song.path)
+        val lrcFile = java.io.File(songFile.parentFile, "${songFile.nameWithoutExtension}.lrc")
+
+        // Android 11+ check: if file exists and we might not have permission
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R && lrcFile.exists() && !lrcFile.canWrite()) {
+            val uri = com.theveloper.pixelplay.utils.MediaStorePermissionHelper.getMediaStoreUri(context, lrcFile.absolutePath)
+            if (uri != null) {
+                val intentSender = com.theveloper.pixelplay.utils.MediaStorePermissionHelper.createWriteRequestIntentSender(context, listOf(uri))
+                if (intentSender != null) {
+                    pendingLyricsSave = PendingLyricsSave(song, lyrics, preferSynced)
+                    viewModelScope.launch { _writePermissionRequest.emit(intentSender) }
+                    return
+                }
+            }
+        }
+
+        performLyricsSave(song, lyrics, preferSynced)
+    }
+
+    private fun performLyricsSave(song: Song, lyrics: Lyrics, preferSynced: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val songFile = java.io.File(song.path)
+                val lrcFile = java.io.File(songFile.parentFile, "${songFile.nameWithoutExtension}.lrc")
+                val lrcContent = LyricsUtils.toLrcString(lyrics, preferSynced)
+
+                lrcFile.writeText(lrcContent, Charsets.UTF_8)
+                _toastEvents.emit(context.getString(R.string.lyrics_saved_successfully))
+                
+                // If it was the current song, we might want to refresh the lyrics in state if it migrated from remote to local
+                if (playbackStateHolder.stablePlayerState.value.currentSong?.id == song.id) {
+                    // This could trigger a reload if needed, but for now we just confirmed it's saved.
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to save lyrics to file")
+                _toastEvents.emit(context.getString(R.string.lyrics_save_failed))
+            }
         }
     }
 
