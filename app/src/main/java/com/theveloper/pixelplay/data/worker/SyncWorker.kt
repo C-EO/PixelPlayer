@@ -676,7 +676,8 @@ constructor(
     private fun isSongUnchanged(raw: RawSongData, existing: SongEntity?): Boolean {
         if (existing == null) return false
 
-        val parentDir = File(raw.filePath).parent ?: ""
+        val lastSlash = raw.filePath.lastIndexOf('/')
+        val parentDir = if (lastSlash > 0) raw.filePath.substring(0, lastSlash) else ""
         val existingDateModifiedSeconds = TimeUnit.MILLISECONDS.toSeconds(existing.dateAdded)
 
         return existing.filePath == raw.filePath &&
@@ -770,10 +771,10 @@ constructor(
 
                     while (cursor.moveToNext()) {
                         try {
-                            val data = cursor.getString(dataCol)
-                            val parentPath = File(data).parent
-                            if (parentPath != null) {
-                                val normalizedParent = File(parentPath).absolutePath
+                            val data = cursor.getString(dataCol) ?: continue
+                            val lastSlash = data.lastIndexOf('/')
+                            if (lastSlash > 0) {
+                                val normalizedParent = data.substring(0, lastSlash)
                                 if (directoryResolver.isBlocked(normalizedParent)) {
                                     continue
                                 }
@@ -1082,6 +1083,13 @@ constructor(
                         if (dir.isHidden || name.startsWith(".")) return@onEnter false
                         val path = dir.absolutePath
                         if (directoryResolver.isBlocked(path)) return@onEnter false
+
+                        if (File(dir, ".nomedia").exists()) {
+                            val isAllowed = allowedSet.any { allowed -> 
+                                allowed.absolutePath == path || allowed.absolutePath.startsWith("$path/")
+                            }
+                            if (!isAllowed) return@onEnter false
+                        }
 
                         // Default Skip Rules (System Folders)
                         val isSystemFolder = (name == "Android" || name == "data" || name == "obb")
