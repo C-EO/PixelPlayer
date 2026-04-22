@@ -13,14 +13,22 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.telegram.TelegramRepository
 import com.theveloper.pixelplay.presentation.viewmodel.LibraryStateHolder
 import com.theveloper.pixelplay.presentation.viewmodel.ThemeStateHolder
+import com.theveloper.pixelplay.utils.AlbumArtCacheManager
+import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.CrashHandler
 import com.theveloper.pixelplay.utils.AppLocaleManager
 import com.theveloper.pixelplay.utils.MediaMetadataRetrieverPool
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -56,6 +64,11 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
 
     @Inject
     lateinit var libraryStateHolder: dagger.Lazy<LibraryStateHolder>
+
+    @Inject
+    lateinit var userPreferencesRepository: dagger.Lazy<UserPreferencesRepository>
+
+    private val startupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // AÑADE EL COMPANION OBJECT
     companion object {
@@ -99,6 +112,16 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
+
+        startupScope.launch {
+            AlbumArtUtils.migrateLegacyCacheLocation(this@PixelPlayApplication)
+            val savedLimit = runCatching {
+                userPreferencesRepository.get().albumArtCacheLimitMbFlow.first()
+            }.getOrNull()
+            if (savedLimit != null) {
+                AlbumArtCacheManager.configuredCacheLimitMb = savedLimit.toLong()
+            }
+        }
     }
 
     override fun newImageLoader(): ImageLoader {
