@@ -72,6 +72,7 @@ class DualPlayerEngine @Inject constructor(
     private companion object {
         private const val AUDIO_OFFLOAD_BUFFERING_FALLBACK_MS = 4_000L
         private val LOCAL_MEDIA_SCHEMES = setOf("content", "file", "android.resource")
+        private val REMOTE_MEDIA_SCHEMES = setOf("http", "https", "telegram", "netease", "qqmusic", "navidrome", "jellyfin", "gdrive")
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -167,7 +168,9 @@ class DualPlayerEngine @Inject constructor(
                 // Limpieza para canciones que no son de Telegram
                 telegramCacheManager.setActivePlayback(null)
             }
-            // Wake mode is configured once in buildPlayer().
+            // Upgrade/downgrade wake policy so local playback does not keep the radio awake
+            // and cloud/remote playback still holds the network wake lock.
+            applyWakeModeForCurrentItem()
 
             // --- Pre-Resolve Next/Prev Tracks para Performance ---
             try {
@@ -337,6 +340,33 @@ class DualPlayerEngine @Inject constructor(
         return scheme == null || scheme in LOCAL_MEDIA_SCHEMES
     }
 
+    /**
+     * Selects the cheapest wake policy that still keeps playback reliable.
+     * Network wake is only needed when the current queue item actually talks to the network —
+     * local file playback keeps only CPU awake so the device can sleep the radio.
+     */
+    private fun wakeModeFor(mediaItem: MediaItem?): Int {
+        val scheme = mediaItem?.localConfiguration?.uri?.scheme?.lowercase()
+        return if (scheme != null && scheme in REMOTE_MEDIA_SCHEMES) {
+            C.WAKE_MODE_NETWORK
+        } else {
+            C.WAKE_MODE_LOCAL
+        }
+    }
+
+    private fun applyWakeModeForCurrentItem() {
+        if (!::playerA.isInitialized) return
+        val mode = wakeModeFor(playerA.currentMediaItem)
+        try {
+            playerA.setWakeMode(mode)
+            if (::playerB.isInitialized) {
+                playerB.setWakeMode(mode)
+            }
+        } catch (e: Exception) {
+            Timber.tag("DualPlayerEngine").w(e, "Failed to update wake mode")
+        }
+    }
+
     private fun shouldDisableAudioOffloadByDefault(): Boolean {
         val manufacturer = Build.MANUFACTURER.lowercase()
         val brand = Build.BRAND.lowercase()
@@ -388,6 +418,7 @@ class DualPlayerEngine @Inject constructor(
             playerA.shuffleModeEnabled = shuffleMode
             playerA.prepare()
             playerA.playWhenReady = desiredPlayWhenReady
+            applyWakeModeForCurrentItem()
         }
 
         _activeAudioSessionId.value = playerA.audioSessionId
@@ -510,10 +541,11 @@ class DualPlayerEngine @Inject constructor(
                     .build()
             )
             setHandleAudioBecomingNoisy(true) // Force player to pause automatically when audio is rerouted from a headset to device speakers
-            // Cloud sources are proxied through localhost, but the proxy still depends on
-            // upstream network access. Keep both CPU and network awake so background
-            // playback does not stall when the screen turns off or the app is backgrounded.
-            setWakeMode(C.WAKE_MODE_NETWORK)
+            // Default to CPU-only wake. Upgraded to WAKE_MODE_NETWORK dynamically when the
+            // current item is a remote/cloud source via applyWakeModeForCurrentItem().
+            // Keeping local playback on WAKE_MODE_LOCAL lets the radio sleep, which is one
+            // of the biggest heat savings for long sessions on weaker phones.
+            setWakeMode(C.WAKE_MODE_LOCAL)
             // Explicitly keep both players live so they can overlap without affecting each other
             playWhenReady = false
             Timber.tag("DualPlayerEngine").d("Built player with audio offload %s", if (audioOffloadEnabled) "enabled" else "disabled")
@@ -933,7 +965,9 @@ class DualPlayerEngine @Inject constructor(
         // playerB is now the Outgoing/Aux.
 
         val duration = settings.durationMs.toLong().coerceAtLeast(500L)
-        val stepMs = 16L
+        // 30Hz volume ramp is indistinguishable from 60Hz at the AudioTrack frame boundary
+        // for a multi-second crossfade; halves wake-ups during overlap.
+        val stepMs = 32L
         var elapsed = 0L
         var lastLog = 0L
 

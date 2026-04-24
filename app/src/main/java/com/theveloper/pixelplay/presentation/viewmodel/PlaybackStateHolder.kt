@@ -42,7 +42,11 @@ class PlaybackStateHolder @Inject constructor(
     companion object {
         private const val TAG = "PlaybackStateHolder"
         private const val DURATION_MISMATCH_TOLERANCE_MS = 1500L
-        private const val FOREGROUND_PROGRESS_TICK_MS = 250L
+        // 500 ms keeps the progress bar/time display smooth to the eye (it still updates twice
+        // per second) while halving Compose recomposition pressure vs. the old 250 ms tick.
+        // The visual slider uses frame-clock interpolation on top of this, so the animation
+        // stays fluid even at a slower underlying cadence.
+        private const val FOREGROUND_PROGRESS_TICK_MS = 500L
         private const val BACKGROUND_PROGRESS_TICK_MS = 1000L
         /**
          * Threshold above which we skip per-item moveMediaItem calls and use

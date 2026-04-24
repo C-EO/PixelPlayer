@@ -180,7 +180,10 @@ class MusicService : MediaLibraryService() {
         const val ACTION_SLEEP_TIMER_EXPIRED = "com.theveloper.pixelplay.ACTION_SLEEP_TIMER_EXPIRED"
         const val EXTRA_FORCE_FOREGROUND_ON_START =
             "com.theveloper.pixelplay.extra.FORCE_FOREGROUND_ON_START"
-        private const val PLAYBACK_SNAPSHOT_DEBOUNCE_MS = 350L
+        // Queue/index/flags snapshot is only used for restore on process death. A full-queue
+        // JSON+DataStore rewrite on every Media3 event (track transition fires 3-4 listeners
+        // within ~200ms) is unnecessary work. 1500ms coalesces those without harming restore.
+        private const val PLAYBACK_SNAPSHOT_DEBOUNCE_MS = 1500L
         private const val FORCED_WIDGET_STATE_DEBOUNCE_MS = 90L
         private const val MEDIA_SESSION_BUTTON_DEBOUNCE_MS = 90L
         private val pendingMediaButtonForegroundStarts = AtomicInteger(0)
@@ -1049,7 +1052,6 @@ class MusicService : MediaLibraryService() {
             }
             requestWidgetAndWearRefreshWithFollowUp()
             mediaSession?.let { refreshMediaSessionUiWithFollowUp(it) }
-            mediaSession?.let { refreshMediaSessionUi(it) }
             schedulePlaybackSnapshotPersist()
         }
 

@@ -1769,11 +1769,13 @@ private fun LyricsTrackInfo(
     
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
-            // Spin forever
+            // Spin forever. 8s per revolution halves the effective per-second animation work
+            // vs the original 4s cadence — visually still clearly a rotating "vinyl", but
+            // drives fewer Compose invalidations during long listening sessions.
             while (true) {
                 currentRotation.animateTo(
                     targetValue = currentRotation.value + 360f,
-                    animationSpec = tween(4000, easing = LinearEasing)
+                    animationSpec = tween(8000, easing = LinearEasing)
                 )
             }
         } else {
