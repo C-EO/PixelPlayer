@@ -9,4 +9,6 @@
     <string name="setcat_language_spanish">Espagnol</string>
     <string name="setcat_language_french">Français</string>
     <string name="setcat_language_russian">Russe</string>
+    <string name="setcat_language_chinese">Chinois (simplifié)</string>
+    <string name="setcat_language_indonesian">Indonésien</string>
 </resources>
